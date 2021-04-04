@@ -79,6 +79,9 @@ jobs:
         os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
+      - uses: actions/checkout@v2
+      - name: Build
+        run: go build -o ./rest
       - name: Run the API and integration tests
         run: |
           ./rest &
