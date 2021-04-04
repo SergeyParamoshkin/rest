@@ -54,9 +54,11 @@ import (
 	"github.com/go-chi/render"
 )
 
-var routes = flag.Bool("routes", false, "Generate router documentation")
-
+// nolint
 func main() {
+	// nolint
+	var routes = flag.Bool("routes", false, "Generate router documentation")
+
 	flag.Parse()
 
 	r := chi.NewRouter()
@@ -105,10 +107,12 @@ func main() {
 	// the output.
 	if *routes {
 		// fmt.Println(docgen.JSONRoutesDoc(r))
+		// nolint
 		fmt.Println(docgen.MarkdownRoutesDoc(r, docgen.MarkdownOpts{
 			ProjectPath: "github.com/go-chi/chi/v5",
 			Intro:       "Welcome to the chi/_examples/rest generated docs.",
 		}))
+
 		return
 	}
 
@@ -118,6 +122,7 @@ func main() {
 func ListArticles(w http.ResponseWriter, r *http.Request) {
 	if err := render.RenderList(w, r, NewArticleListResponse(articles)); err != nil {
 		render.Render(w, r, ErrRender(err))
+
 		return
 	}
 }
@@ -136,10 +141,12 @@ func ArticleCtx(next http.Handler) http.Handler {
 			article, err = dbGetArticleBySlug(articleSlug)
 		} else {
 			render.Render(w, r, ErrNotFound)
+
 			return
 		}
 		if err != nil {
 			render.Render(w, r, ErrNotFound)
+
 			return
 		}
 
@@ -160,6 +167,7 @@ func CreateArticle(w http.ResponseWriter, r *http.Request) {
 	data := &ArticleRequest{}
 	if err := render.Bind(r, data); err != nil {
 		render.Render(w, r, ErrInvalidRequest(err))
+
 		return
 	}
 
@@ -178,23 +186,28 @@ func GetArticle(w http.ResponseWriter, r *http.Request) {
 	// Assume if we've reach this far, we can access the article
 	// context because this handler is a child of the ArticleCtx
 	// middleware. The worst case, the recoverer middleware will save us.
+	// nolint
 	article := r.Context().Value("article").(*Article)
 
 	if err := render.Render(w, r, NewArticleResponse(article)); err != nil {
 		render.Render(w, r, ErrRender(err))
+
 		return
 	}
 }
 
 // UpdateArticle updates an existing Article in our persistent store.
 func UpdateArticle(w http.ResponseWriter, r *http.Request) {
+	// nolint
 	article := r.Context().Value("article").(*Article)
 
 	data := &ArticleRequest{Article: article}
 	if err := render.Bind(r, data); err != nil {
 		render.Render(w, r, ErrInvalidRequest(err))
+
 		return
 	}
+
 	article = data.Article
 	dbUpdateArticle(article.ID, article)
 
@@ -208,11 +221,13 @@ func DeleteArticle(w http.ResponseWriter, r *http.Request) {
 	// Assume if we've reach this far, we can access the article
 	// context because this handler is a child of the ArticleCtx
 	// middleware. The worst case, the recoverer middleware will save us.
+	// nolint
 	article := r.Context().Value("article").(*Article)
 
 	article, err = dbRemoveArticle(article.ID)
 	if err != nil {
 		render.Render(w, r, ErrInvalidRequest(err))
+
 		return
 	}
 
@@ -220,6 +235,7 @@ func DeleteArticle(w http.ResponseWriter, r *http.Request) {
 }
 
 // A completely separate router for administrator routes
+
 func adminRouter() chi.Router {
 	r := chi.NewRouter()
 	r.Use(AdminOnly)
@@ -232,6 +248,7 @@ func adminRouter() chi.Router {
 	r.Get("/users/{userId}", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(fmt.Sprintf("admin: view user id %v", chi.URLParam(r, "userId"))))
 	})
+
 	return r
 }
 
@@ -241,6 +258,7 @@ func AdminOnly(next http.Handler) http.Handler {
 		isAdmin, ok := r.Context().Value("acl.admin").(bool)
 		if !ok || !isAdmin {
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -259,6 +277,7 @@ func paginate(next http.Handler) http.Handler {
 
 // This is entirely optional, but I wanted to demonstrate how you could easily
 // add your own logic to the render.Respond method.
+// nolint
 func init() {
 	render.Respond = func(w http.ResponseWriter, r *http.Request, v interface{}) {
 		if err, ok := v.(error); ok {
@@ -269,12 +288,14 @@ func init() {
 			}
 
 			// We log the error
+			// nolint
 			fmt.Printf("Logging err: %s\n", err.Error())
 
 			// We change the response to not reveal the actual error message,
 			// instead we can transform the message something more friendly or mapped
 			// to some code / language, etc.
 			render.DefaultResponder(w, r, render.M{"status": "error"})
+
 			return
 		}
 
@@ -308,6 +329,7 @@ func (u *UserPayload) Bind(r *http.Request) error {
 
 func (u *UserPayload) Render(w http.ResponseWriter, r *http.Request) error {
 	u.Role = "collaborator"
+
 	return nil
 }
 
@@ -337,11 +359,13 @@ func (a *ArticleRequest) Bind(r *http.Request) error {
 
 	// a.User is nil if no Userpayload fields are sent in the request. In this app
 	// this won't cause a panic, but checks in this Bind method may be required if
+	// nolint
 	// a.User or futher nested fields like a.User.Name are accessed elsewhere.
 
 	// just a post-process after a decode..
 	a.ProtectedID = ""                                 // unset the protected ID
 	a.Article.Title = strings.ToLower(a.Article.Title) // as an example, we down-case
+
 	return nil
 }
 
@@ -374,8 +398,10 @@ func NewArticleResponse(article *Article) *ArticleResponse {
 }
 
 func (rd *ArticleResponse) Render(w http.ResponseWriter, r *http.Request) error {
+	// nolint
 	// Pre-processing before a response is marshalled and sent across the wire
 	rd.Elapsed = 10
+
 	return nil
 }
 
@@ -384,6 +410,7 @@ func NewArticleListResponse(articles []*Article) []render.Renderer {
 	for _, article := range articles {
 		list = append(list, NewArticleResponse(article))
 	}
+
 	return list
 }
 
@@ -413,10 +440,12 @@ type ErrResponse struct {
 
 func (e *ErrResponse) Render(w http.ResponseWriter, r *http.Request) error {
 	render.Status(r, e.HTTPStatusCode)
+
 	return nil
 }
 
 func ErrInvalidRequest(err error) render.Renderer {
+	// nolint
 	return &ErrResponse{
 		Err:            err,
 		HTTPStatusCode: 400,
@@ -426,6 +455,7 @@ func ErrInvalidRequest(err error) render.Renderer {
 }
 
 func ErrRender(err error) render.Renderer {
+	// nolint
 	return &ErrResponse{
 		Err:            err,
 		HTTPStatusCode: 422,
@@ -434,12 +464,13 @@ func ErrRender(err error) render.Renderer {
 	}
 }
 
+// nolint
 var ErrNotFound = &ErrResponse{HTTPStatusCode: 404, StatusText: "Resource not found."}
 
 //--
 // Data model objects and persistence mocks:
 //--
-
+// nolint
 // User data model
 type User struct {
 	ID   int64  `json:"id"`
@@ -456,6 +487,7 @@ type Article struct {
 }
 
 // Article fixture data
+// nolint
 var articles = []*Article{
 	{ID: "1", UserID: 100, Title: "Hi", Slug: "hi"},
 	{ID: "2", UserID: 200, Title: "sup", Slug: "sup"},
@@ -465,11 +497,13 @@ var articles = []*Article{
 }
 
 // User fixture data
+// nolint
 var users = []*User{
 	{ID: 100, Name: "Peter"},
 	{ID: 200, Name: "Julia"},
 }
 
+// nolint
 func dbNewArticle(article *Article) (string, error) {
 	article.ID = fmt.Sprintf("%d", rand.Intn(100)+10)
 	articles = append(articles, article)
@@ -482,6 +516,7 @@ func dbGetArticle(id string) (*Article, error) {
 			return a, nil
 		}
 	}
+
 	return nil, errors.New("article not found.")
 }
 
@@ -491,6 +526,7 @@ func dbGetArticleBySlug(slug string) (*Article, error) {
 			return a, nil
 		}
 	}
+
 	return nil, errors.New("article not found.")
 }
 
@@ -498,9 +534,11 @@ func dbUpdateArticle(id string, article *Article) (*Article, error) {
 	for i, a := range articles {
 		if a.ID == id {
 			articles[i] = article
+
 			return article, nil
 		}
 	}
+
 	return nil, errors.New("article not found.")
 }
 
@@ -508,9 +546,11 @@ func dbRemoveArticle(id string) (*Article, error) {
 	for i, a := range articles {
 		if a.ID == id {
 			articles = append((articles)[:i], (articles)[i+1:]...)
+
 			return a, nil
 		}
 	}
+
 	return nil, errors.New("article not found.")
 }
 
@@ -520,5 +560,6 @@ func dbGetUser(id int64) (*User, error) {
 			return u, nil
 		}
 	}
+
 	return nil, errors.New("user not found.")
 }
