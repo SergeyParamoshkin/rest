@@ -128,7 +128,10 @@ func main() {
 
 func ListArticles(w http.ResponseWriter, r *http.Request) {
 	if err := render.RenderList(w, r, NewArticleListResponse(articles)); err != nil {
-		render.Render(w, r, ErrRender(err))
+		err = render.Render(w, r, ErrRender(err))
+		if err != nil {
+			log.Println(err)
+		}
 
 		return
 	}
@@ -147,16 +150,23 @@ func ArticleCtx(next http.Handler) http.Handler {
 		} else if articleSlug := chi.URLParam(r, "articleSlug"); articleSlug != "" {
 			article, err = dbGetArticleBySlug(articleSlug)
 		} else {
-			render.Render(w, r, ErrNotFound)
+			err = render.Render(w, r, ErrNotFound)
+			if err != nil {
+				log.Println(err)
+			}
 
 			return
 		}
 		if err != nil {
-			render.Render(w, r, ErrNotFound)
+			err = render.Render(w, r, ErrNotFound)
+			if err != nil {
+				log.Println(err)
+			}
 
 			return
 		}
 
+		// nolint
 		ctx := context.WithValue(r.Context(), "article", article)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -166,7 +176,10 @@ func ArticleCtx(next http.Handler) http.Handler {
 // It's just a stub, but you get the idea.
 func SearchArticles(w http.ResponseWriter, r *http.Request) {
 	if err := render.RenderList(w, r, NewArticleListResponse(articles)); err != nil {
-		render.Render(w, r, ErrRender(err))
+		err = render.Render(w, r, ErrRender(err))
+		if err != nil {
+			log.Println(err)
+		}
 
 		return
 	}
@@ -177,16 +190,25 @@ func SearchArticles(w http.ResponseWriter, r *http.Request) {
 func CreateArticle(w http.ResponseWriter, r *http.Request) {
 	data := &ArticleRequest{}
 	if err := render.Bind(r, data); err != nil {
-		render.Render(w, r, ErrInvalidRequest(err))
+		err = render.Render(w, r, ErrInvalidRequest(err))
+		if err != nil {
+			log.Println(err)
+		}
 
 		return
 	}
 
 	article := data.Article
-	dbNewArticle(article)
+	_, err := dbNewArticle(article)
+	if err != nil {
+		log.Println(err)
+	}
 
 	render.Status(r, http.StatusCreated)
-	render.Render(w, r, NewArticleResponse(article))
+	err = render.Render(w, r, NewArticleResponse(article))
+	if err != nil {
+		log.Println(err)
+	}
 }
 
 // GetArticle returns the specific Article. You'll notice it just
@@ -201,7 +223,10 @@ func GetArticle(w http.ResponseWriter, r *http.Request) {
 	article := r.Context().Value("article").(*Article)
 
 	if err := render.Render(w, r, NewArticleResponse(article)); err != nil {
-		render.Render(w, r, ErrRender(err))
+		err = render.Render(w, r, ErrRender(err))
+		if err != nil {
+			log.Println(err)
+		}
 
 		return
 	}
@@ -214,15 +239,24 @@ func UpdateArticle(w http.ResponseWriter, r *http.Request) {
 
 	data := &ArticleRequest{Article: article}
 	if err := render.Bind(r, data); err != nil {
-		render.Render(w, r, ErrInvalidRequest(err))
+		err = render.Render(w, r, ErrInvalidRequest(err))
+		if err != nil {
+			log.Println(err)
+		}
 
 		return
 	}
 
 	article = data.Article
-	dbUpdateArticle(article.ID, article)
+	_, err := dbUpdateArticle(article.ID, article)
+	if err != nil {
+		log.Println(err)
+	}
 
-	render.Render(w, r, NewArticleResponse(article))
+	err = render.Render(w, r, NewArticleResponse(article))
+	if err != nil {
+		log.Println(err)
+	}
 }
 
 // DeleteArticle removes an existing Article from our persistent store.
@@ -237,12 +271,18 @@ func DeleteArticle(w http.ResponseWriter, r *http.Request) {
 
 	article, err = dbRemoveArticle(article.ID)
 	if err != nil {
-		render.Render(w, r, ErrInvalidRequest(err))
+		err = render.Render(w, r, ErrInvalidRequest(err))
+		if err != nil {
+			log.Println(err)
+		}
 
 		return
 	}
 
-	render.Render(w, r, NewArticleResponse(article))
+	err = render.Render(w, r, NewArticleResponse(article))
+	if err != nil {
+		log.Println(err)
+	}
 }
 
 // A completely separate router for administrator routes
@@ -406,7 +446,10 @@ type ArticleResponse struct {
 }
 
 func NewArticleResponse(article *Article) *ArticleResponse {
-	resp := &ArticleResponse{Article: article}
+	resp := &ArticleResponse{
+		Elapsed: 0,
+		Article: article,
+	}
 
 	if resp.User == nil {
 		if user, _ := dbGetUser(resp.UserID); user != nil {
@@ -418,7 +461,6 @@ func NewArticleResponse(article *Article) *ArticleResponse {
 }
 
 func (rd *ArticleResponse) Render(w http.ResponseWriter, r *http.Request) error {
-	// nolint
 	// Pre-processing before a response is marshalled and sent across the wire
 	rd.Elapsed = 10
 
