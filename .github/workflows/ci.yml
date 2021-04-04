@@ -34,8 +34,25 @@ jobs:
       - name: Unit tests
         run: go test -v -covermode=count
 
+  integration:
+    needs: [test]
+    strategy:
+      matrix:
+        go-version: [1.16.x]
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build
+        run: go build -o ./rest
+      - name: Run the API and integration tests
+        run: |
+          ./rest &
+          sleep 1
+          go test ./...  -v -covermode=count -tags integration
+
   build:
-    needs: [golangci, test]
+    needs: [golangci, test, integration]
     strategy:
       matrix:
         go-version: [1.16.x]
@@ -70,20 +87,3 @@ jobs:
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/rest:latest
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
-
-  integration:
-    needs: [build]
-    strategy:
-      matrix:
-        go-version: [1.16.x]
-        os: [ubuntu-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Build
-        run: go build -o ./rest
-      - name: Run the API and integration tests
-        run: |
-          ./rest &
-          sleep 1
-          go test ./...  -v -covermode=count -tags integration
