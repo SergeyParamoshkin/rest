@@ -14,7 +14,6 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v2
         with:
-          # Required: the version of golangci-lint is required and must be specified without patch version: we always use the latest patch version.
           version: v1.39
 
   test:
@@ -32,7 +31,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
       - name: Unit tests
-        run: go test -v -covermode=count
+        run: go test ./... -v -covermode=count
 
   integration:
     needs: [test]
