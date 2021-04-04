@@ -44,6 +44,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -70,11 +71,17 @@ func main() {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("root."))
+		_, err := w.Write([]byte("root."))
+		if err != nil {
+			log.Println(err)
+		}
 	})
 
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("pong"))
+		_, err := w.Write([]byte("pong"))
+		if err != nil {
+			log.Println(err)
+		}
 	})
 
 	r.Get("/panic", func(w http.ResponseWriter, r *http.Request) {
@@ -158,7 +165,11 @@ func ArticleCtx(next http.Handler) http.Handler {
 // SearchArticles searches the Articles data for a matching article.
 // It's just a stub, but you get the idea.
 func SearchArticles(w http.ResponseWriter, r *http.Request) {
-	render.RenderList(w, r, NewArticleListResponse(articles))
+	if err := render.RenderList(w, r, NewArticleListResponse(articles)); err != nil {
+		render.Render(w, r, ErrRender(err))
+
+		return
+	}
 }
 
 // CreateArticle persists the posted Article and returns it
@@ -240,13 +251,22 @@ func adminRouter() chi.Router {
 	r := chi.NewRouter()
 	r.Use(AdminOnly)
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("admin: index"))
+		_, err := w.Write([]byte("admin: index"))
+		if err != nil {
+			log.Println(err)
+		}
 	})
 	r.Get("/accounts", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("admin: list accounts.."))
+		_, err := w.Write([]byte("admin: list accounts.."))
+		if err != nil {
+			log.Println(err)
+		}
 	})
 	r.Get("/users/{userId}", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(fmt.Sprintf("admin: view user id %v", chi.URLParam(r, "userId"))))
+		_, err := w.Write([]byte(fmt.Sprintf("admin: view user id %v", chi.URLParam(r, "userId"))))
+		if err != nil {
+			log.Println(err)
+		}
 	})
 
 	return r
