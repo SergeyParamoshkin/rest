@@ -1,3 +1,6 @@
+// client_test.go
+// +build !integration
+
 package client
 
 import "testing"
