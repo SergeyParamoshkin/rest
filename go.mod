@@ -1,4 +1,4 @@
-module github.com/SergeyParamoshkin/testing/rest
+module github.com/SergeyParamoshkin/rest
 
 go 1.16
 
