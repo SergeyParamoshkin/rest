@@ -14,8 +14,7 @@ var c = Client{
 }
 
 func TestPing(t *testing.T) {
-	s, err := c.Ping()
-	if err != nil || s != "pong" {
+	if s, err := c.Ping(); err != nil || s != "pong" {
 		t.Fail()
 	}
 }
