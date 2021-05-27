@@ -41,9 +41,11 @@ package main
 
 import (
 	"context"
+	"embed"
 	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log"
 	"math/rand"
 	"net/http"
@@ -123,7 +125,42 @@ func main() {
 		return
 	}
 
+	FileServer(r, "/swagger-ui", Swagger())
+
 	http.ListenAndServe(":3333", r)
+}
+
+func FileServer(r chi.Router, path string, root http.FileSystem) {
+	if strings.ContainsAny(path, "{}*") {
+		panic("FileServer does not permit any URL parameters.")
+	}
+
+	if path != "/" && path[len(path)-1] != '/' {
+		r.Get(path, http.RedirectHandler(path+"/", 301).ServeHTTP)
+		path += "/"
+	}
+	path += "*"
+
+	r.Get(path, func(w http.ResponseWriter, r *http.Request) {
+		rctx := chi.RouteContext(r.Context())
+		pathPrefix := strings.TrimSuffix(rctx.RoutePattern(), "/*")
+		fs := http.StripPrefix(pathPrefix, http.FileServer(root))
+		fs.ServeHTTP(w, r)
+	})
+}
+
+//go:embed swagger-ui
+var embededFiles embed.FS
+
+func Swagger() http.FileSystem {
+
+	log.Print("using embed mode")
+	fsys, err := fs.Sub(embededFiles, "swagger-ui")
+	if err != nil {
+		panic(err)
+	}
+
+	return http.FS(fsys)
 }
 
 func ListArticles(w http.ResponseWriter, r *http.Request) {
@@ -402,7 +439,15 @@ func (u *UserPayload) Render(w http.ResponseWriter, r *http.Request) error {
 // we'd like to include a computed field based on other values that aren't
 // in the data model. Also, check out this awesome blog post on struct composition:
 // http://attilaolah.eu/2014/09/10/json-and-struct-composition-in-go/
+
+// swagger:route POST /article foobar-tag ArticleRequest
+// Foobar does some amazing stuff.
+// responses:
+//   200: ArticleRequest
+
+// swagger:response ArticleRequest
 type ArticleRequest struct {
+	// in:body
 	*Article
 
 	User *UserPayload `json:"user,omitempty"`

@@ -1,0 +1,42 @@
+definitions:
+  UserPayload:
+    properties:
+      id:
+        format: int64
+        type: integer
+        x-go-name: ID
+      name:
+        type: string
+        x-go-name: Name
+      role:
+        type: string
+        x-go-name: Role
+    type: object
+    x-go-package: github.com/SergeyParamoshkin/rest
+paths:
+  /article:
+    post:
+      operationId: ArticleRequest
+      responses:
+        "200":
+          $ref: '#/responses/ArticleRequest'
+      summary: Foobar does some amazing stuff.
+      tags:
+      - foobar-tag
+responses:
+  ArticleRequest:
+    description: ""
+    headers:
+      id:
+        type: string
+      slug:
+        type: string
+      title:
+        type: string
+      user: {}
+      user_id:
+        format: int64
+        type: integer
+    schema:
+      $ref: '#/definitions/UserPayload'
+swagger: "2.0"

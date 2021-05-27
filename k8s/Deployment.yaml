@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rest-deployment
+  labels:
+    app: rest
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: rest
+  template:
+    metadata:
+      labels:
+        app: rest
+    spec:
+      containers:
+        - name: rest
+          image: serg3091/rest:develop
+          ports:
+            - containerPort: 3333
