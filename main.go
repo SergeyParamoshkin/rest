@@ -55,18 +55,144 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/docgen"
 	"github.com/go-chi/render"
+	"go.uber.org/zap"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/prometheus"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/global"
+	export "go.opentelemetry.io/otel/sdk/export/metric"
+	"go.opentelemetry.io/otel/sdk/metric/aggregator/histogram"
+	controller "go.opentelemetry.io/otel/sdk/metric/controller/basic"
+	processor "go.opentelemetry.io/otel/sdk/metric/processor/basic"
+	selector "go.opentelemetry.io/otel/sdk/metric/selector/simple"
 )
+
+const ServiceName = "rest"
+
+type CtxKey int8
+
+const (
+	CtxKeyLogger CtxKey = iota
+)
+
+var lemonsKey = attribute.Key("ex.com/lemons")
+
+type App struct {
+	sugarLogger *zap.SugaredLogger
+	config      Config
+}
 
 // nolint
 func main() {
+
 	// nolint
-	var routes = flag.Bool("routes", false, "Generate router documentation")
+	var (
+		routes   = flag.Bool("routes", getEnvBool(ServiceName+"_routes", false), "Generate router documentation")
+		addr     = flag.String("addr", getEnv(ServiceName+"_ADDR", ":3333"), "application port")
+		diagPort = flag.String("diag_addr", getEnv(ServiceName+"_DIAG_ADDR", ":9999"), "diag port")
+	)
 
 	flag.Parse()
 
+	logger, _ := zap.NewProduction()
+	defer logger.Sync() // flushes buffer, if any
+	sugar := logger.Sugar()
+
+	a := App{
+		sugarLogger: sugar,
+	}
+
+	config := prometheus.Config{}
+	c := controller.New(
+		processor.New(
+			selector.NewWithHistogramDistribution(
+				histogram.WithExplicitBoundaries(config.DefaultHistogramBoundaries),
+			),
+			export.CumulativeExportKindSelector(),
+			processor.WithMemory(true),
+		),
+	)
+	exporter, err := prometheus.New(config, c)
+	if err != nil {
+		a.sugarLogger.Panicf("failed to initialize prometheus exporter %v", err)
+	}
+	global.SetMeterProvider(exporter.MeterProvider())
+
+	meter := global.Meter(ServiceName)
+	labels := []attribute.KeyValue{
+		attribute.String("status", "200")}
+	ClientCompletedCount := metric.Must(meter).NewInt64Counter(
+		"http/client/completed_count",
+		metric.WithDescription("Count of completed requests, by HTTP method and response status"),
+	).Bind(labels...)
+	defer ClientCompletedCount.Unbind()
+
+	// observerLock := new(sync.RWMutex)
+	// observerValueToReport := new(float64)
+	// observerLabelsToReport := new([]attribute.KeyValue)
+	// cb := func(_ context.Context, result metric.Float64ObserverResult) {
+	// 	(*observerLock).RLock()
+	// 	value := *observerValueToReport
+	// 	labels := *observerLabelsToReport
+	// 	(*observerLock).RUnlock()
+	// 	result.Observe(value, labels...)
+	// }
+	// _ = metric.Must(meter).NewFloat64ValueObserver("ex.com.one", cb,
+	// 	metric.WithDescription("A ValueObserver set to 1.0"),
+	// )
+
+	// valuerecorder := metric.Must(meter).NewFloat64ValueRecorder("ex.com.two")
+	// counter := metric.Must(meter).NewFloat64Counter("ex.com.three")
+
+	// commonLabels := []attribute.KeyValue{lemonsKey.Int(10), attribute.String("A", "1"), attribute.String("B", "2"), attribute.String("C", "3")}
+	// notSoCommonLabels := []attribute.KeyValue{lemonsKey.Int(13)}
+
+	// ctx := context.Background()
+
+	// (*observerLock).Lock()
+	// *observerValueToReport = 1.0
+	// *observerLabelsToReport = commonLabels
+	// (*observerLock).Unlock()
+	// meter.RecordBatch(
+	// 	ctx,
+	// 	commonLabels,
+	// 	valuerecorder.Measurement(2.0),
+	// 	counter.Measurement(12.0),
+	// )
+
+	// time.Sleep(5 * time.Second)
+
+	// (*observerLock).Lock()
+	// *observerValueToReport = 1.0
+	// *observerLabelsToReport = notSoCommonLabels
+	// (*observerLock).Unlock()
+	// meter.RecordBatch(
+	// 	ctx,
+	// 	notSoCommonLabels,
+	// 	valuerecorder.Measurement(2.0),
+	// 	counter.Measurement(22.0),
+	// )
+
+	// time.Sleep(5 * time.Second)
+
+	// (*observerLock).Lock()
+	// *observerValueToReport = 13.0
+	// *observerLabelsToReport = commonLabels
+	// (*observerLock).Unlock()
+	// meter.RecordBatch(
+	// 	ctx,
+	// 	commonLabels,
+	// 	valuerecorder.Measurement(12.0),
+	// 	counter.Measurement(13.0),
+	// )
 	r := chi.NewRouter()
 
+	diagRouter := chi.NewRouter()
+	diagRouter.Get("/metrics", exporter.ServeHTTP)
+
 	r.Use(middleware.RequestID)
+	r.Use(a.Logger)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.URLFormat)
@@ -75,24 +201,27 @@ func main() {
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		_, err := w.Write([]byte("root."))
 		if err != nil {
-			log.Println(err)
+			sugar.Errorw(err.Error())
 		}
 	})
 
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
+		logger := r.Context().Value(CtxKeyLogger).(*zap.SugaredLogger)
+		logger.Infow("ping with middle")
+		ClientCompletedCount.Add(r.Context(), 1)
 		_, err := w.Write([]byte("pong"))
 		if err != nil {
-			log.Println(err)
+			sugar.Errorw(err.Error())
 		}
 	})
 
 	r.Get("/panic", func(w http.ResponseWriter, r *http.Request) {
-		panic("test")
+		sugar.Panicw("panic")
 	})
 
 	// RESTy routes for "articles" resource
 	r.Route("/articles", func(r chi.Router) {
-		r.With(paginate).Get("/", ListArticles)
+		r.With(paginate).Get("/", a.ListArticles)
 		r.Post("/", CreateArticle)       // POST /articles
 		r.Get("/search", SearchArticles) // GET /articles/search
 
@@ -127,7 +256,18 @@ func main() {
 
 	FileServer(r, "/swagger-ui", Swagger())
 
-	http.ListenAndServe(":3333", r)
+	go func() {
+		err = http.ListenAndServe(*addr, r)
+		if err != nil {
+			a.sugarLogger.Errorw(err.Error())
+		}
+	}()
+
+	err = http.ListenAndServe(*diagPort, diagRouter)
+	if err != nil {
+		a.sugarLogger.Errorw(err.Error())
+	}
+
 }
 
 func FileServer(r chi.Router, path string, root http.FileSystem) {
@@ -149,11 +289,16 @@ func FileServer(r chi.Router, path string, root http.FileSystem) {
 	})
 }
 
+func (a *App) Logger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), CtxKeyLogger, a.sugarLogger)))
+	})
+}
+
 //go:embed swagger-ui
 var embededFiles embed.FS
 
 func Swagger() http.FileSystem {
-
 	log.Print("using embed mode")
 	fsys, err := fs.Sub(embededFiles, "swagger-ui")
 	if err != nil {
@@ -163,11 +308,11 @@ func Swagger() http.FileSystem {
 	return http.FS(fsys)
 }
 
-func ListArticles(w http.ResponseWriter, r *http.Request) {
+func (a *App) ListArticles(w http.ResponseWriter, r *http.Request) {
 	if err := render.RenderList(w, r, NewArticleListResponse(articles)); err != nil {
 		err = render.Render(w, r, ErrRender(err))
 		if err != nil {
-			log.Println(err)
+			a.sugarLogger.Errorw(err.Error())
 		}
 
 		return
