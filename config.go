@@ -5,13 +5,13 @@ import (
 	"strconv"
 )
 
-type Config struct {
-}
+type Config struct{}
 
 func getEnv(key string, defaultVal string) string {
 	if envVal, ok := os.LookupEnv(key); ok {
 		return envVal
 	}
+
 	return defaultVal
 }
 
@@ -22,6 +22,7 @@ func getEnvBool(key string, defaultVal bool) bool {
 			return envBool
 		}
 	}
+
 	return defaultVal
 }
 
@@ -32,5 +33,6 @@ func getEnvInt64(key string, defaultVal int64) int64 {
 			return envInt64
 		}
 	}
+
 	return defaultVal
 }
